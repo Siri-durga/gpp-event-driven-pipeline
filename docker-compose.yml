@@ -58,3 +58,13 @@ services:
       MONGO_URI: mongodb://root:rootpassword@mongodb:27017/
     depends_on:
       - mongodb
+
+  generator:
+    build: ./generator
+    ports:
+      - "8003:8003"
+    environment:
+      INGEST_URL: http://ingestion_service:8000/ingest
+      GENERATOR_RATE_SECONDS: 2
+    depends_on:
+      - ingestion_service
