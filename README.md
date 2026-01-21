@@ -386,7 +386,7 @@ pytest
 
 &nbsp;   <li>Docker</li>
 
-&nbsp;   <li>Pytest</li>
+&nbsp;   <li>Pytest.</li>
 
 </ul>
 
