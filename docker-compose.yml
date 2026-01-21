@@ -1,7 +1,6 @@
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
+    image: confluentinc/cp-zookeeper:7.6.0
     ports:
       - "2181:2181"
     environment:
@@ -9,8 +8,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
+    image: confluentinc/cp-kafka:7.6.0
     ports:
       - "9092:9092"
     depends_on:
@@ -23,10 +21,40 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   mongodb:
-    image: mongo:7
-    container_name: mongodb
+    image: mongo:6
     ports:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: rootpassword
+
+  ingestion_service:
+    build: ./ingestion_service
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: sensor_events
+    depends_on:
+      - kafka
+
+  consumer_service:
+    build: ./consumer_service
+    ports:
+      - "8002:8002"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: sensor_events
+      MONGO_URI: mongodb://root:rootpassword@mongodb:27017/
+    depends_on:
+      - kafka
+      - mongodb
+
+  api_service:
+    build: ./api_service
+    ports:
+      - "8001:8001"
+    environment:
+      MONGO_URI: mongodb://root:rootpassword@mongodb:27017/
+    depends_on:
+      - mongodb
