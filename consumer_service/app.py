@@ -103,6 +103,7 @@ def health():
     return {"status": "healthy"}
 
 def run_health_server():
+    import uvicorn
     uvicorn.run(health_app, host="0.0.0.0", port=8002)
 
 threading.Thread(target=run_health_server, daemon=True).start()
