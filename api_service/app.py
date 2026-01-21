@@ -1,27 +1,59 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from typing import Optional
 from pymongo import MongoClient
 import logging
+import json
+import sys
 import os
-from datetime import datetime
+
+# -------------------------------
+# Structured JSON Logging
+# -------------------------------
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        return json.dumps({
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "service": "api_service",
+            "message": record.getMessage()
+        })
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(JsonFormatter())
+
+logger = logging.getLogger()
+logger.handlers = []
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# -------------------------------
+# FastAPI App
+# -------------------------------
 
 app = FastAPI()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
+# -------------------------------
+# MongoDB Configuration
+# -------------------------------
 
 MONGO_URI = os.getenv(
     "MONGO_URI",
     "mongodb://root:rootpassword@mongodb:27017/"
 )
 
-client = MongoClient(MONGO_URI)
-db = client.sensor_db
-collection = db.events
+try:
+    client = MongoClient(MONGO_URI)
+    db = client.sensor_db
+    collection = db.events
+    logger.info("Connected to MongoDB")
+except Exception as e:
+    logger.critical(f"Failed to connect to MongoDB: {e}")
+    raise e
 
-logging.info("Connected to MongoDB")
+# -------------------------------
+# MongoDB Query Logic
+# -------------------------------
 
 def query_mongodb(
     sensor_id: Optional[str],
@@ -40,14 +72,22 @@ def query_mongodb(
         if end_time:
             query["timestamp"]["$lte"] = end_time
 
-    logging.info(f"MongoDB query: {query}")
+    logger.info(f"Executing MongoDB query: {query}")
 
-    results = []
-    for doc in collection.find(query):
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
+    try:
+        results = []
+        for doc in collection.find(query):
+            doc["_id"] = str(doc["_id"])  # Mongo ObjectId → string
+            results.append(doc)
+        return results
 
-    return results
+    except Exception as e:
+        logger.error(f"MongoDB query failed: {e}")
+        raise HTTPException(status_code=500, detail="Database query failed")
+
+# -------------------------------
+# API Endpoints
+# -------------------------------
 
 @app.get("/data")
 def get_data(
@@ -56,8 +96,11 @@ def get_data(
     end_time: Optional[str] = Query(None)
 ):
     data = query_mongodb(sensor_id, start_time, end_time)
-    return {"count": len(data), "data": data}
+    return {
+        "count": len(data),
+        "data": data
+    }
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "healthy"}
